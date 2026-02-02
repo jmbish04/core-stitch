@@ -80,7 +80,13 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
+# dist folder is in gitignore as it's built from source
+dist/
+frontend/dist/
+
+# Cloudflare Workers
+.wrangler
+.dev.vars
 
 # Gatsby files
 .cache/

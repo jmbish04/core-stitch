@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ChatInterface from '../components/ChatInterface';
+---
+
+<Layout title="Core Stitch - UX Architect">
+  <main class="h-screen flex flex-col">
+    <ChatInterface client:load />
+  </main>
+</Layout>
