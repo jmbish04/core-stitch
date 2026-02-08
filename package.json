@@ -8,6 +8,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm run build",
     "build": "npm run build:frontend",
+    "migrate:db": "wrangler d1 migrations apply DB --remote",
     "deploy": "npm run build && wrangler deploy",
     "db:init": "wrangler d1 execute stitch-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute stitch-db --remote --file=./schema.sql"
