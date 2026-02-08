@@ -335,9 +335,6 @@ export default function ChatInterface() {
 
       if (!textContent.trim()) return;
 
-      setState((prev) => ({ ...prev, isLoading: true }));
-
-      // Add user message immediately
       const userMessage: ThreadMessageLike = {
         id: crypto.randomUUID(),
         role: "user",
@@ -345,15 +342,16 @@ export default function ChatInterface() {
         createdAt: new Date(),
       };
 
+      // Optimistically add user message and set loading state
       setState((prev) => ({
         ...prev,
         messages: [...prev.messages, userMessage],
+        isLoading: true,
       }));
 
       try {
         const result = await api.chat(textContent, state.currentThreadId || undefined);
 
-        // Add assistant response
         const assistantMessage: ThreadMessageLike = {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -361,6 +359,7 @@ export default function ChatInterface() {
           createdAt: new Date(),
         };
 
+        // Update state with assistant response
         setState((prev) => ({
           ...prev,
           messages: [...prev.messages, assistantMessage],
@@ -373,7 +372,12 @@ export default function ChatInterface() {
         setState((prev) => ({ ...prev, threads }));
       } catch (error) {
         console.error("Failed to send message:", error);
-        setState((prev) => ({ ...prev, isLoading: false }));
+        // On error, remove the optimistic message and reset loading state
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          messages: prev.messages.filter((m) => m.id !== userMessage.id),
+        }));
       }
     },
     [state.currentThreadId]

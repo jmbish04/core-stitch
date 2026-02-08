@@ -9,6 +9,7 @@ export interface Env {
   UX_ARCHITECT_AGENT: DurableObjectNamespace;
   OPENAI_API_KEY: string;
   STITCH_API_KEY: string;
+  WORKER_URL: string;
   ASSETS: Fetcher;
 }
 
@@ -146,11 +147,17 @@ Always prioritize user-centered design principles and maintain consistency with 
     }
 
     try {
-      // Using the self URL as callback host for MCP server connection
+      // Use environment variable for callback host
+      const callbackHost = this.env.WORKER_URL;
+
+      if (!callbackHost) {
+        throw new Error("WORKER_URL environment variable is not set");
+      }
+
       const result = await this.addMcpServer(
         "Stitch",
         "https://stitch.googleapis.com/mcp",
-        "https://core-stitch.workers.dev", // Callback host - will be updated at deployment
+        callbackHost,
         "agents",
         {
           transport: {
@@ -324,15 +331,15 @@ Always prioritize user-centered design principles and maintain consistency with 
       createdAt: Date.now(),
     };
 
-    // Add to history and persist
-    const updatedHistory = [...this.state.conversationHistory, userMsg];
-    this.setState({ ...this.state, conversationHistory: updatedHistory });
+    // Use local variable to track conversation history throughout this call
+    let currentHistory = [...this.state.conversationHistory, userMsg];
+    this.setState({ ...this.state, conversationHistory: currentHistory });
     this.persistMessage(userMsg);
 
     // Build messages for OpenAI
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: this.state.systemPrompt },
-      ...updatedHistory.map((msg) => {
+      ...currentHistory.map((msg) => {
         if (msg.role === "tool" && msg.toolCallId) {
           return {
             role: "tool" as const,
@@ -379,9 +386,9 @@ Always prioritize user-centered design principles and maintain consistency with 
         toolCalls: assistantMessage.tool_calls,
         createdAt: Date.now(),
       };
-      
-      const historyWithAssistant = [...this.state.conversationHistory, assistantMsg];
-      this.setState({ ...this.state, conversationHistory: historyWithAssistant });
+
+      currentHistory.push(assistantMsg);
+      this.setState({ ...this.state, conversationHistory: currentHistory });
       this.persistMessage(assistantMsg);
 
       // Execute each tool call
@@ -402,8 +409,8 @@ Always prioritize user-centered design principles and maintain consistency with 
             createdAt: Date.now(),
           };
 
-          const historyWithTool = [...this.state.conversationHistory, toolMsg];
-          this.setState({ ...this.state, conversationHistory: historyWithTool });
+          currentHistory.push(toolMsg);
+          this.setState({ ...this.state, conversationHistory: currentHistory });
           this.persistMessage(toolMsg);
         } catch (error) {
           const errorMsg: Message = {
@@ -414,8 +421,8 @@ Always prioritize user-centered design principles and maintain consistency with 
             createdAt: Date.now(),
           };
 
-          const historyWithError = [...this.state.conversationHistory, errorMsg];
-          this.setState({ ...this.state, conversationHistory: historyWithError });
+          currentHistory.push(errorMsg);
+          this.setState({ ...this.state, conversationHistory: currentHistory });
           this.persistMessage(errorMsg);
         }
       }
@@ -423,7 +430,7 @@ Always prioritize user-centered design principles and maintain consistency with 
       // Get final response after tool calls
       const followUpMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: "system", content: this.state.systemPrompt },
-        ...this.state.conversationHistory.map((msg) => {
+        ...currentHistory.map((msg) => {
           if (msg.role === "tool" && msg.toolCallId) {
             return {
               role: "tool" as const,
@@ -461,8 +468,8 @@ Always prioritize user-centered design principles and maintain consistency with 
       createdAt: Date.now(),
     };
 
-    const finalHistory = [...this.state.conversationHistory, finalAssistantMsg];
-    this.setState({ ...this.state, conversationHistory: finalHistory });
+    currentHistory.push(finalAssistantMsg);
+    this.setState({ ...this.state, conversationHistory: currentHistory });
     this.persistMessage(finalAssistantMsg);
 
     return {
@@ -565,7 +572,7 @@ Always prioritize user-centered design principles and maintain consistency with 
     // Handle chat
     if (path === "/chat" && request.method === "POST") {
       const body = await request.json() as { message: string; threadId?: string };
-      
+
       if (body.threadId) {
         await this.loadThread(body.threadId);
       }
@@ -578,7 +585,7 @@ Always prioritize user-centered design principles and maintain consistency with 
     if (path.startsWith("/threads/") && request.method === "GET") {
       const threadId = path.replace("/threads/", "");
       const loaded = await this.loadThread(threadId);
-      
+
       if (!loaded) {
         return Response.json({ error: "Thread not found" }, { status: 404 });
       }
@@ -587,6 +594,22 @@ Always prioritize user-centered design principles and maintain consistency with 
         threadId,
         messages: this.state.conversationHistory,
       });
+    }
+
+    // Handle thread deletion (cleanup internal storage)
+    if (path === "/delete" && request.method === "POST") {
+      // Clear agent's internal storage
+      this.sql`DELETE FROM agent_messages WHERE thread_id = ${this.state.threadId}`;
+      this.sql`DELETE FROM agent_threads WHERE id = ${this.state.threadId}`;
+
+      // Reset state
+      this.setState({
+        threadId: null,
+        systemPrompt: this.UX_ARCHITECT_SYSTEM_PROMPT,
+        conversationHistory: [],
+      });
+
+      return Response.json({ success: true });
     }
 
     return new Response("Not Found", { status: 404 });

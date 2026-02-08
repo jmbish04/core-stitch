@@ -15,7 +15,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "stitch-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "__REPLACE_WITH_YOUR_D1_DATABASE_ID__"
 
 # Durable Objects for Agent
 [durable_objects]
@@ -30,3 +30,4 @@ new_classes = ["UXArchitectAgent"]
 # Environment variables (set in Cloudflare dashboard or .dev.vars)
 # OPENAI_API_KEY - OpenAI API key
 # STITCH_API_KEY - Stitch Remote MCP Server API key
+# WORKER_URL - Worker URL for MCP callback (e.g., https://your-worker.workers.dev)

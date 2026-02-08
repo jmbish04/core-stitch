@@ -92,9 +92,15 @@ app.delete("/api/threads/:threadId", async (c) => {
   const threadId = c.req.param("threadId");
 
   try {
+    // Delete from D1
     await c.env.DB.prepare("DELETE FROM threads WHERE id = ?")
       .bind(threadId)
       .run();
+
+    // Also trigger deletion in the agent's Durable Object storage
+    const agentId = c.env.UX_ARCHITECT_AGENT.idFromName(threadId);
+    const agentStub = c.env.UX_ARCHITECT_AGENT.get(agentId);
+    await agentStub.fetch(new Request("https://agent/delete", { method: "POST" }));
 
     return c.json({ success: true });
   } catch (error) {
@@ -119,7 +125,7 @@ app.post("/api/chat", async (c) => {
     const id = c.env.UX_ARCHITECT_AGENT.idFromName(agentId);
     const agent = c.env.UX_ARCHITECT_AGENT.get(id);
 
-    // Forward request to agent
+    // Forward request to agent - it handles all persistence
     const agentResponse = await agent.fetch(
       new Request("https://agent/chat", {
         method: "POST",
@@ -129,36 +135,6 @@ app.post("/api/chat", async (c) => {
     );
 
     const result = await agentResponse.json();
-
-    // Persist messages to D1 as well for global queries
-    if (result && typeof result === "object" && "response" in result) {
-      const resultWithResponse = result as { response: string; threadId: string };
-      const threadId = resultWithResponse.threadId;
-      const now = Math.floor(Date.now() / 1000);
-
-      // Ensure thread exists in D1
-      await c.env.DB.prepare(
-        `INSERT INTO threads (id, created_at, updated_at) 
-         VALUES (?, ?, ?) 
-         ON CONFLICT(id) DO UPDATE SET updated_at = ?`
-      )
-        .bind(threadId, now, now, now)
-        .run();
-
-      // Save user message
-      await c.env.DB.prepare(
-        "INSERT INTO messages (id, thread_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)"
-      )
-        .bind(crypto.randomUUID(), threadId, "user", body.message, now)
-        .run();
-
-      // Save assistant response
-      await c.env.DB.prepare(
-        "INSERT INTO messages (id, thread_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)"
-      )
-        .bind(crypto.randomUUID(), threadId, "assistant", resultWithResponse.response, now)
-        .run();
-    }
 
     return c.json(result);
   } catch (error) {
