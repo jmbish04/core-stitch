@@ -15,7 +15,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "stitch-db"
-database_id = "__REPLACE_WITH_YOUR_D1_DATABASE_ID__"
+database_id = "cfb37f15-fc6e-4d45-b35e-fc48836bf0fc"
 
 # Durable Objects for Agent
 [durable_objects]
