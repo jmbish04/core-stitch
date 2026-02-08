@@ -1,0 +1,33 @@
+name = "core-stitch"
+main = "src/index.ts"
+compatibility_date = "2026-01-23"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[observability]
+enabled = true
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "stitch-db"
+database_id = "__REPLACE_WITH_YOUR_D1_DATABASE_ID__"
+
+# Durable Objects for Agent
+[durable_objects]
+bindings = [
+  { name = "UX_ARCHITECT_AGENT", class_name = "UXArchitectAgent" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["UXArchitectAgent"]
+
+# Environment variables (set in Cloudflare dashboard or .dev.vars)
+# OPENAI_API_KEY - OpenAI API key
+# STITCH_API_KEY - Stitch Remote MCP Server API key
+# WORKER_URL - Worker URL for MCP callback (e.g., https://your-worker.workers.dev)
